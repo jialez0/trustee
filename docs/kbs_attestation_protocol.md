@@ -411,35 +411,18 @@ provisioned policies for a given attester.
 A POST request with the content of resource to `/kbs/v0/resource/<repository>/<type>/<tag>` can register the resource into the KBS.
 
 
-### Token Resource
+### Attestation Results Token
 
-Authenticated attesters can also request a token from the KBS.
-Attesters can use tokens to request additional resources from external (i.e. not the KBS) services.
+Authenticated attesters can also request an attestation token from the KBS.
+Attesters can use the attestation result token to request additional resources from external services, a.k.a. relying parties. 
 
-KBS uses the following path format to locate token resource:
-
-```
-/kbs/v0/resource/token/{tag}
-```
-
-Where the URL path parameter `tag` specify some special token requirements,
-it can be left blank and use default token.
-
-#### Token Format
-
-The token follows the [JSON web token](https://jwt.io/) standard and format.
-It is the concatenation of three Base64url-encoded, dot-separated strings:
-a header, a payload and a signature, e.g (with line breaks for display purposes
-only):
+KBS uses the following path format to locate attestation results token resource:
 
 ```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
-eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
-SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+/kbs/v0/attestation-results
 ```
 
-The next sections describe how the three strings that compose the token are
-formatted and built.
+The provided attestation results token follows the [JSON web token](https://jwt.io/) standard and format.
 
 ##### Header
 
@@ -468,7 +451,7 @@ following example:
     "iat": 1568158598,
     "iss": "https://xxxxxx",
 
-    "tee-pubkey": $pubkey
+    <custom-claims>
 }
 ```
 
@@ -485,13 +468,15 @@ address) of the token:
 | `iat` | Issuing time    | Seconds since the epoch | `180322235959`       |
 | `iss` | Issuer          | KBS URL                 | `https://my-kbs.io/` |
 
-The private claims set must include the `tee-pubkey` name. This name refers to
+The custom claims set must include the attestation results from Attestation-Service,
+which include the TCB status and measurements. 
+
+The custom claims set can also include the `tee-pubkey` name. This name refers to
 the HW-TEE's public key sent by the KBC along with the attestation evidence,
 which is valid within the validity period of the token.
-
-When the KBC uses the token to request resources or services from a KBS service
-API, then the KBS uses this public key to encrypt the symmetric key used to
-encrypt the `output`.
+When the KBC uses this token to request resources or services from a rely party service
+API, then the rely party service can use this public key to encrypt the symmetric key used to
+encrypt the output payload.
 
 ##### Signature
 
@@ -502,21 +487,15 @@ signature.
 
 #### HTTP Response
 
-The token is included in the `/kbs/v0/resource/token/` `GET` HTTP response
-body, as JSON content:
+The token is included in the `/kbs/v0/attestation-results` `GET` HTTP response
+body, as serialized token bytes.
 
-``` json-with-comments
-{
-    "token": "$serialized_token"
-}
-```
-
-where `$serialized_token` is built as follows:
+where serialized token is built as follows:
 
 ``` rust
 let jwt_header = base64_url::encode(r#"{{"alg": "RS256","typ": "JWT"}}"#);
 
-let jwt_claims_string = format!(r#"{{"exp": {}, "iat": {}, "iss": {}, "tee-pubkey": {}}}"#, exp, iat, iss, pubkey);
+let jwt_claims_string = format!(r#"{{"exp": {}, "iat": {}, "iss": {}, {}}}}"#, exp, iat, iss, attestation_results);
 let jwt_claims = base64_url::encode(&jwt_claims_string);
 
 let jws_signature_input = format!("{}.{}", jwt_header, jwt_claims);
