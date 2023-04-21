@@ -451,7 +451,8 @@ following example:
     "iat": 1568158598,
     "iss": "https://xxxxxx",
 
-    <custom-claims>
+    "tee-pubkey": $pubkey
+    <Custom Claims>
 }
 ```
 
@@ -468,15 +469,16 @@ address) of the token:
 | `iat` | Issuing time    | Seconds since the epoch | `180322235959`       |
 | `iss` | Issuer          | KBS URL                 | `https://my-kbs.io/` |
 
-The custom claims set must include the attestation results from Attestation-Service,
-which include the TCB status and measurements. 
+The custom claims set must include the attestation result from the
+`Attestation Service`, which include the TCB status and measurements.
 
-The custom claims set can also include the `tee-pubkey` name. This name refers to
+The custom claims set can also include a `tee-pubkey` claim. This claim refers to
 the HW-TEE's public key sent by the KBC along with the attestation evidence,
 which is valid within the validity period of the token.
-When the KBC uses this token to request resources or services from a rely party service
-API, then the rely party service can use this public key to encrypt the symmetric key used to
-encrypt the output payload.
+
+When the KBC uses this token to request resources or services from a relying
+party service API, then the symmetric key used to encrypt the output payload can
+be wrapped with the provided `tee-pubkey`.
 
 ##### Signature
 
@@ -488,14 +490,12 @@ signature.
 #### HTTP Response
 
 The token is included in the `/kbs/v0/attestation-results` `GET` HTTP response
-body, as serialized token bytes.
-
-where serialized token is built as follows:
+body, as serialized token bytes that is built as follows:
 
 ``` rust
 let jwt_header = base64_url::encode(r#"{{"alg": "RS256","typ": "JWT"}}"#);
 
-let jwt_claims_string = format!(r#"{{"exp": {}, "iat": {}, "iss": {}, {}}}}"#, exp, iat, iss, attestation_results);
+let jwt_claims_string = format!(r#"{{"exp": {}, "iat": {}, "iss": {}, {}}}}"#, exp, iat, iss, attestation_results_claims);
 let jwt_claims = base64_url::encode(&jwt_claims_string);
 
 let jws_signature_input = format!("{}.{}", jwt_header, jwt_claims);
@@ -504,6 +504,21 @@ let jws_signature = base64_url::encode(rs256_key_pair.sign(&jws_signature_input)
 let serialized_token = format!("{}.{}.{}", jwt_header, jwt_claims, jwt_signature);
 ```
 
+### Attestation Results Token Certificate Chain
+
+The KBS is configured with a specific Attestation Results Token Broker. The
+Broker generates and signs Attestation Results that can be fetched from the
+`/kbs/v0/attestation-results` endpoint. In order for Relying Parties to
+authenticate the KBS Broker and validate the Attestation Results, the Broker
+certificate chain is made available by the KBS at the following endpoint:
+
+```
+/kbs/v0/token-certificate-chain
+```
+
+The Broker certificate chain is DER encoded and follows the
+[X.509](https://www.rfc-editor.org/rfc/rfc5280) specification.
+
 ## Error information
 
 In addition to using the standard HTTPS status code to represent the returned
@@ -511,7 +526,6 @@ error type, it is also necessary to provide a detailed description of the
 attestation error.
 The [Problem Details for HTTP APIs](https://www.rfc-editor.org/rfc/rfc7807)
 format is used for that purpose:
-
 
 ```json
 {

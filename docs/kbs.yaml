@@ -143,26 +143,20 @@ paths:
           schema:
             type: string
           required: true
-        - name: 
-  /resource/token/{tag}:
+
+  /attestation-results:
     get:
-      operationId: getToken
-      summary: Get an external resource token from the Key Broker Service.
+      operationId: getAttestationResultsToken
+      summary: Get an Attestation Results Token from the Key Broker Service.
       parameters:
         - in: cookie
           name: kbs-session-id
           schema:
             type: string
-        - name: tag
-          in: path
-          description: Can be left blank to use default.
-          schema:
-            type: string
-          required: false
       responses:
         200:
           description: >-
-            The KBS reponse including the token.
+            The KBS reponse including the attestation result token.
             The KBS session ID is returned in a cookie named `kbs-session-id`.
           headers:
             Set-Cookie:
@@ -172,13 +166,31 @@ paths:
           content:
             application/jwt:
               schema:
-                $ref: '#/components/schemas/Token'
+                $ref: '#/components/schemas/AttestationToken'
         401:
           description: Missing or invalid session ID.
         403:
-          description: The KBC is not allowed to get a token.
+          description: The caller is not allowed to get an attestation token.
         404:
-          description: The KBS does not provide token resource.
+          description: The KBS does not provide attestation tokens.
+
+  /token-certificate-chain:
+    get:
+      operationId: getAttestationTokenCertificateChain
+      summary: Get the Attestation Results Token Broker certificate chain
+      responses:
+        200:
+          description: >-
+            The KBS reponse including the attestation token broker certificate
+            chain.
+          content:
+            application/x-x509-ca-cert:
+              schema:
+                $ref: '#/components/schemas/CertificateChain'
+        404:
+          description: >-
+            The KBS does not provide attestation token broker certificate chains.
+
 
 components:
   schemas:
@@ -273,25 +285,19 @@ components:
           description: >-
             Encryption algorithm used to encrypt the response payload.
 
-    Token:
-      required:
-        - token
-      type: object
-      properties:
-        token:
-          description: >-
-            A JSON Web Token (https://jwt.io).
-            The token value is a string, which is made of 3 strings, separated
-            by dots.
-            The first string is a Base64-url encoding of
-            '#/components/schemas/TokenHeader'.
-            The second string is a Base64-url encoding of
-            '#/components/schemas/TokenPayload'.
-            The third string is a Base64-url encoding of the token signature.
-          type: string
-      description: A JSON Web Token (https://jwt.io) formatted object.
+    AttestationToken:
+      type: string
+      description: >-
+        A serialized JSON Web Token (https://jwt.io).
+        The token value is a string, which is made of 3 strings, separated
+        by dots.
+        The first string is a Base64-url encoding of
+        '#/components/schemas/AttestationTokenHeader'.
+        The second string is a Base64-url encoding of
+        '#/components/schemas/AttestationTokenPayload'.
+        The third string is a Base64-url encoding of the token signature.
 
-    TokenHeader:
+    AttestationTokenHeader:
       required:
         - typ
         - alg
@@ -304,12 +310,14 @@ components:
           type: string
           description: The signature algorithm
 
-    TokenPayload:
+    AttestationTokenPayload:
       required:
         - ext
         - iat
         - iss
-        - tee-pubkey
+        - tee
+        - allow
+        - output
       properties:
         ext:
           type: integer
@@ -320,9 +328,24 @@ components:
         iss:
           type: string
           description: The token issuer URL.
-        tee-pubkey:
+        tee:
+          type: string
+          description: "TEE Attesting Environment"
+        allow:
+          type: boolean
+        output:
           type: object
+          description: >-
+            Attestation results from the Confidential Containers Attestation
+            Service (https://github.com/confidential-containers/attestation-service).
+        tee-pubkey:
           $ref: '#/components/schemas/PublicKey'
+        tcb:
+          type: string
+
+    CertificateChain:
+      type: string
+      description: "A DER encoded X.509 certificate chain"
 
     PublicKey:
       required:
