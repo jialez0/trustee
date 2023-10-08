@@ -138,7 +138,7 @@ dependencies = [
  "tokio-openssl",
  "tokio-rustls 0.23.4",
  "tokio-util",
- "webpki-roots 0.22.6",
+ "webpki-roots",
 ]
 
 [[package]]
@@ -404,7 +404,7 @@ dependencies = [
  "actix-web-httpauth",
  "aes-gcm",
  "anyhow",
- "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=token)",
+ "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=oaas)",
  "async-trait",
  "attestation-service",
  "base64 0.21.2",
@@ -440,7 +440,7 @@ dependencies = [
 [[package]]
 name = "as-types"
 version = "0.1.0"
-source = "git+https://github.com/jialez0/attestation-service.git?branch=token#c2d2d29909c6e0c302610d9c1b4c1f79f985e386"
+source = "git+https://github.com/jialez0/attestation-service.git?branch=oaas#23af80aad7df683aae6c7e9e522f5b84b521ee78"
 dependencies = [
  "kbs-types",
  "serde",
@@ -510,20 +510,19 @@ dependencies = [
 [[package]]
 name = "attestation-service"
 version = "0.1.0"
-source = "git+https://github.com/jialez0/attestation-service.git?branch=token#c2d2d29909c6e0c302610d9c1b4c1f79f985e386"
+source = "git+https://github.com/jialez0/attestation-service.git?branch=oaas#23af80aad7df683aae6c7e9e522f5b84b521ee78"
 dependencies = [
  "anyhow",
- "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=token)",
+ "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=oaas)",
  "asn1-rs",
  "async-trait",
- "az-snp-vtpm",
  "base64 0.21.2",
  "bincode",
  "byteorder",
  "cfg-if",
  "chrono",
  "codicon",
- "csv-rs",
+ "csv-rs 0.1.0 (git+https://gitee.com/anolis/csv-rs?rev=05fbacd)",
  "eventlog-rs",
  "futures",
  "hex",
@@ -565,7 +564,7 @@ dependencies = [
  "az-snp-vtpm",
  "base64 0.21.2",
  "codicon",
- "csv-rs",
+ "csv-rs 0.1.0 (git+https://gitee.com/anolis/csv-rs?rev=8a90aac)",
  "hyper",
  "hyper-tls",
  "kbs-types",
@@ -650,7 +649,6 @@ dependencies = [
  "clap 4.3.21",
  "jsonwebkey",
  "memoffset 0.8.0",
- "openssl",
  "rsa 0.8.2",
  "serde",
  "serde_json",
@@ -1183,6 +1181,25 @@ dependencies = [
  "generic-array",
  "rand_core",
  "typenum",
+]
+
+[[package]]
+name = "csv-rs"
+version = "0.1.0"
+source = "git+https://gitee.com/anolis/csv-rs?rev=05fbacd#05fbacd8ffff3d48bb19319da1c9a84b763d9302"
+dependencies = [
+ "bitfield",
+ "codicon",
+ "hyper",
+ "hyper-tls",
+ "iocuddle",
+ "openssl",
+ "openssl-sys",
+ "rand",
+ "serde",
+ "serde-big-array",
+ "static_assertions",
+ "tokio",
 ]
 
 [[package]]
@@ -2631,15 +2648,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
-name = "openssl-src"
-version = "111.27.0+1.1.1v"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "06e8f197c82d7511c5b014030c9b1efeda40d7d5f99d23b4ceed3524a5e63f02"
-dependencies = [
- "cc",
-]
-
-[[package]]
 name = "openssl-sys"
 version = "0.9.91"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2647,7 +2655,6 @@ checksum = "866b5f16f90776b9bb8dc1e1802ac6f0513de3a7a7465867bfbc563dc737faac"
 dependencies = [
  "cc",
  "libc",
- "openssl-src",
  "pkg-config",
  "vcpkg",
 ]
@@ -3200,7 +3207,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
- "webpki-roots 0.22.6",
+ "webpki-roots",
  "winreg",
 ]
 
@@ -3406,7 +3413,7 @@ checksum = "1d1feddffcfcc0b33f5c6ce9a29e341e4cd59c3f78e7ee45f4a40c038b1d6cbb"
 dependencies = [
  "log",
  "ring",
- "rustls-webpki 0.101.3",
+ "rustls-webpki",
  "sct",
 ]
 
@@ -3417,16 +3424,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d3987094b1d07b653b7dfdc3f70ce9a1da9c51ac18c1b06b662e4f9a0e9f4b2"
 dependencies = [
  "base64 0.21.2",
-]
-
-[[package]]
-name = "rustls-webpki"
-version = "0.100.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d6207cd5ed3d8dca7816f8f3725513a34609c0c765bf652b8c3cb4cfd87db46b"
-dependencies = [
- "ring",
- "untrusted",
 ]
 
 [[package]]
@@ -4446,12 +4443,9 @@ dependencies = [
  "base64 0.21.2",
  "log",
  "once_cell",
- "rustls 0.21.6",
- "rustls-webpki 0.100.1",
  "serde",
  "serde_json",
  "url",
- "webpki-roots 0.23.1",
 ]
 
 [[package]]
@@ -4623,15 +4617,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6c71e40d7d2c34a5106301fb632274ca37242cd0c9d3e64dbece371a40a2d87"
 dependencies = [
  "webpki",
-]
-
-[[package]]
-name = "webpki-roots"
-version = "0.23.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b03058f88386e5ff5310d9111d53f48b17d732b401aeb83a8d5190f2ac459338"
-dependencies = [
- "rustls-webpki 0.100.1",
 ]
 
 [[package]]

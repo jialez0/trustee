@@ -36,8 +36,8 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 WORKDIR /usr/src/kbs
 COPY . .
 
-ARG KBS_FEATURES=coco-as-builtin,rustls,resource,opa
-RUN cargo install --path src/kbs --no-default-features --features ${KBS_FEATURES}
+ARG KBS_FEATURES=coco-as-builtin,rustls
+RUN cargo install --locked --path src/kbs --no-default-features --features ${KBS_FEATURES}
 
 FROM debian:stable-slim
 
