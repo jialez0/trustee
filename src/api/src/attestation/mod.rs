@@ -28,6 +28,15 @@ pub trait Attest: Send + Sync {
     /// Verify Attestation Evidence
     /// Return Attestation Results Token
     async fn verify(&mut self, tee: Tee, nonce: &str, attestation: &str) -> Result<String>;
+
+    async fn simple_verify(
+        &mut self,
+        _tee: Tee,
+        _evidence: &str,
+        _policy_id: Option<String>,
+    ) -> Result<String> {
+        bail!("Unimplement");
+    }
 }
 
 /// Attestation Service

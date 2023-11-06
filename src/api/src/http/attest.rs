@@ -10,7 +10,42 @@ use anyhow::anyhow;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TeeEvidence {
+    tee: kbs_types::Tee,
+    evidence: String,
+    policy_id: Option<String>,
+}
+
+/// POST /attestation
+pub(crate) async fn attestation(
+    tee_evidence: web::Json<TeeEvidence>,
+    attestation_service: web::Data<AttestationService>,
+) -> Result<HttpResponse> {
+    let token = attestation_service
+        .0
+        .lock()
+        .await
+        .simple_verify(
+            tee_evidence.tee.clone(),
+            &tee_evidence.evidence,
+            tee_evidence.policy_id.clone(),
+        )
+        .await
+        .map_err(|e| Error::AttestationFailed(e.to_string()))?;
+
+    let body = serde_json::to_string(&json!({
+        "token": token,
+    }))
+    .map_err(|e| Error::TokenIssueFailed(format!("Serialize token failed {e}")))?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body))
+}
 
 /// POST /auth
 pub(crate) async fn auth(

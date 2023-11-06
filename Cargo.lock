@@ -404,7 +404,7 @@ dependencies = [
  "actix-web-httpauth",
  "aes-gcm",
  "anyhow",
- "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=oaas)",
+ "as-types 0.1.0",
  "async-trait",
  "attestation-service",
  "base64 0.21.2",
@@ -440,7 +440,6 @@ dependencies = [
 [[package]]
 name = "as-types"
 version = "0.1.0"
-source = "git+https://github.com/jialez0/attestation-service.git?branch=oaas#23af80aad7df683aae6c7e9e522f5b84b521ee78"
 dependencies = [
  "kbs-types",
  "serde",
@@ -510,10 +509,9 @@ dependencies = [
 [[package]]
 name = "attestation-service"
 version = "0.1.0"
-source = "git+https://github.com/jialez0/attestation-service.git?branch=oaas#23af80aad7df683aae6c7e9e522f5b84b521ee78"
 dependencies = [
  "anyhow",
- "as-types 0.1.0 (git+https://github.com/jialez0/attestation-service.git?branch=oaas)",
+ "as-types 0.1.0",
  "asn1-rs",
  "async-trait",
  "base64 0.21.2",

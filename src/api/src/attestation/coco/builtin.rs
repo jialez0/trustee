@@ -21,6 +21,14 @@ impl Attest for Native {
     async fn verify(&mut self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
         self.inner.evaluate(tee, nonce, attestation).await
     }
+    async fn simple_verify(
+        &mut self,
+        tee: Tee,
+        evidence: &str,
+        policy_id: Option<String>,
+    ) -> Result<String> {
+        self.inner.verify(tee, evidence, policy_id).await
+    }
 }
 
 impl Native {
