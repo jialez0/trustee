@@ -1,11 +1,11 @@
 use anyhow::{anyhow, Context, Result};
 use base64::Engine;
+use log::debug;
 extern crate serde;
 use self::serde::{Deserialize, Serialize};
 use super::*;
 use asn1_rs::{oid, Integer, OctetString, Oid};
 use async_trait::async_trait;
-use kbs_types::TeePubKey;
 use openssl::{
     ec::EcKey,
     ecdsa,
@@ -15,7 +15,6 @@ use openssl::{
 use serde_json::json;
 use sev::firmware::guest::AttestationReport;
 use sev::firmware::host::{CertTableEntry, CertType};
-use sha2::{Digest, Sha384};
 use x509_parser::prelude::*;
 
 #[derive(Serialize, Deserialize)]
@@ -37,11 +36,12 @@ pub struct Snp {}
 impl Verifier for Snp {
     async fn evaluate(
         &self,
-        nonce: String,
-        attestation: &Attestation,
+        evidence: &[u8],
+        report_data: Option<&[u8]>,
+        init_data_hash: Option<&[u8]>,
     ) -> Result<TeeEvidenceParsedClaim> {
-        let tee_evidence = serde_json::from_str::<SnpEvidence>(&attestation.tee_evidence)
-            .context("Deserialize Quote failed.")?;
+        let tee_evidence =
+            serde_json::from_slice::<SnpEvidence>(evidence).context("Deserialize Quote failed.")?;
 
         verify_report_signature(&tee_evidence)?;
 
@@ -54,9 +54,18 @@ impl Verifier for Snp {
             return Err(anyhow!("VMPL Check Failed"));
         }
 
-        let expected_report_data = calculate_expected_report_data(&nonce, &attestation.tee_pubkey);
-        if report.report_data != expected_report_data {
-            return Err(anyhow!("Report Data Mismatch"));
+        if let Some(report_data) = report_data {
+            debug!("Check the binding of REPORT_DATA.");
+            if report_data != report.report_data {
+                bail!("Report Data Mismatch");
+            }
+        }
+
+        if let Some(init_data_hash) = init_data_hash {
+            debug!("Check the binding of HOST_DATA.");
+            if init_data_hash != report.host_data {
+                bail!("Host Data Mismatch");
+            }
         }
 
         Ok(parse_tee_evidence(&report))
@@ -176,21 +185,6 @@ fn verify_cert_chain(cert_chain: &[CertTableEntry]) -> Result<x509::X509> {
         .context("Invalid VCEK Signature")?;
 
     Ok(vcek)
-}
-
-fn calculate_expected_report_data(nonce: &String, tee_pubkey: &TeePubKey) -> [u8; 64] {
-    let mut hasher = Sha384::new();
-
-    hasher.update(nonce.as_bytes());
-    hasher.update(&tee_pubkey.k_mod);
-    hasher.update(&tee_pubkey.k_exp);
-
-    let partial_hash = hasher.finalize();
-
-    let mut hash = [0u8; 64];
-    hash[..48].copy_from_slice(&partial_hash);
-
-    hash
 }
 
 fn parse_tee_evidence(report: &AttestationReport) -> TeeEvidenceParsedClaim {

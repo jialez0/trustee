@@ -3,19 +3,19 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 
-use super::{Attestation, TeeEvidenceParsedClaim, Verifier};
-use anyhow::{anyhow, Context, Result};
+use super::{TeeEvidenceParsedClaim, Verifier};
+use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use az_snp_vtpm::certs::{AmdChain, Vcek, X509};
 use az_snp_vtpm::hcl::HclData;
 use az_snp_vtpm::report::Validateable;
 use az_snp_vtpm::vtpm::{Quote, VerifyVTpmQuote};
 use base64::Engine;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sev::firmware::guest::AttestationReport;
 use sev::firmware::host::TcbVersion;
-use sha2::{Digest, Sha384};
 use std::collections::BTreeMap;
 
 const HCL_VMPL_VALUE: u32 = 0;
@@ -34,20 +34,23 @@ pub struct AzSnpVtpm;
 impl Verifier for AzSnpVtpm {
     async fn evaluate(
         &self,
-        nonce: String,
-        attestation: &Attestation,
+        evidence: &[u8],
+        report_data: Option<&[u8]>,
+        init_data_hash: Option<&[u8]>,
     ) -> Result<TeeEvidenceParsedClaim> {
-        let evidence = serde_json::from_str::<Evidence>(&attestation.tee_evidence)
+        let Some(report_data) = report_data else {
+            bail!("unexpected empty report data");
+        };
+
+        let evidence = serde_json::from_slice::<Evidence>(evidence)
             .context("Failed to deserialize vTPM SEV-SNP evidence")?;
 
         let hcl_data: HclData = evidence.report[..].try_into()?;
         let snp_report = hcl_data.report().snp_report();
         let vcek = Vcek::from_pem(&evidence.vcek)?;
 
-        let hashed_quote = nonced_pub_key_hash(attestation, &nonce);
-
-        verify_quote(&evidence.quote, &hcl_data, &hashed_quote)?;
-        verify_snp_report(snp_report, &vcek)?;
+        verify_quote(&evidence.quote, &hcl_data, report_data)?;
+        verify_snp_report(snp_report, &vcek, init_data_hash)?;
         let var_data = hcl_data.var_data();
         hcl_data.report().verify_report_data(var_data)?;
 
@@ -56,11 +59,11 @@ impl Verifier for AzSnpVtpm {
     }
 }
 
-fn verify_quote(quote: &Quote, hcl_data: &HclData, hashed_nonce: &[u8]) -> Result<()> {
+fn verify_quote(quote: &Quote, hcl_data: &HclData, report_data: &[u8]) -> Result<()> {
     let ak_pub = hcl_data.var_data().ak_pub()?;
 
     ak_pub
-        .verify_quote(quote, hashed_nonce)
+        .verify_quote(quote, report_data)
         .context("Failed to verify vTPM quote")?;
 
     Ok(())
@@ -75,7 +78,11 @@ fn build_amd_chain() -> Result<AmdChain> {
     Ok(chain)
 }
 
-fn verify_snp_report(snp_report: &AttestationReport, vcek: &Vcek) -> Result<()> {
+fn verify_snp_report(
+    snp_report: &AttestationReport,
+    vcek: &Vcek,
+    init_data_hash: Option<&[u8]>,
+) -> Result<()> {
     let amd_chain = build_amd_chain()?;
 
     amd_chain
@@ -88,7 +95,14 @@ fn verify_snp_report(snp_report: &AttestationReport, vcek: &Vcek) -> Result<()> 
         .context("Verification of SEV-SNP report failed")?;
 
     if snp_report.vmpl != HCL_VMPL_VALUE {
-        return Err(anyhow!("VMPL of SNP report is not {HCL_VMPL_VALUE}"));
+        bail!("VMPL of SNP report is not {HCL_VMPL_VALUE}");
+    }
+
+    if let Some(init_data_hash) = init_data_hash {
+        debug!("Check the binding of HOSTDATA.");
+        if init_data_hash != snp_report.host_data {
+            bail!("HOSTDATA is different from that in Azure SNP vTPM Quote");
+        }
     }
 
     Ok(())
@@ -133,38 +147,30 @@ fn parse_tee_evidence(report: &AttestationReport) -> TeeEvidenceParsedClaim {
     json!(string_map) as TeeEvidenceParsedClaim
 }
 
-fn nonced_pub_key_hash(attestation: &Attestation, nonce: &str) -> Vec<u8> {
-    let mut hasher = Sha384::new();
-    hasher.update(nonce);
-    hasher.update(&attestation.tee_pubkey.k_mod);
-    hasher.update(&attestation.tee_pubkey.k_exp);
-    hasher.finalize().to_vec()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_verify_snp_report() {
-        let report = include_bytes!("../../../../test_data/az-hcl-data.bin");
+        let report = include_bytes!("../../test_data/az-hcl-data.bin");
         let hcl_data: HclData = report.as_slice().try_into().unwrap();
-        let vcek = Vcek::from_pem(include_str!("../../../../test_data/az-vcek.pem")).unwrap();
-        verify_snp_report(hcl_data.report().snp_report(), &vcek).unwrap();
+        let vcek = Vcek::from_pem(include_str!("../../test_data/az-vcek.pem")).unwrap();
+        verify_snp_report(hcl_data.report().snp_report(), &vcek, None).unwrap();
 
         let mut wrong_report = *report;
         // messing with snp report
         wrong_report[0x00b0] = 0;
         let wrong_hcl_data: HclData = wrong_report.as_slice().try_into().unwrap();
-        verify_snp_report(wrong_hcl_data.report().snp_report(), &vcek).unwrap_err();
+        verify_snp_report(wrong_hcl_data.report().snp_report(), &vcek, None).unwrap_err();
     }
 
     #[test]
     fn test_verify_quote() {
-        let signature = include_bytes!("../../../../test_data/az-vtpm-quote-sig.bin").to_vec();
-        let message = include_bytes!("../../../../test_data/az-vtpm-quote-msg.bin").to_vec();
+        let signature = include_bytes!("../../test_data/az-vtpm-quote-sig.bin").to_vec();
+        let message = include_bytes!("../../test_data/az-vtpm-quote-msg.bin").to_vec();
         let quote = Quote { signature, message };
-        let report = include_bytes!("../../../../test_data/az-hcl-data.bin");
+        let report = include_bytes!("../../test_data/az-hcl-data.bin");
         let hcl_data: HclData = report.as_slice().try_into().unwrap();
         let nonce = "challenge".as_bytes();
         verify_quote(&quote, &hcl_data, nonce).unwrap();
@@ -190,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_parse_evidence() {
-        let report = include_bytes!("../../../../test_data/az-hcl-data.bin");
+        let report = include_bytes!("../../test_data/az-hcl-data.bin");
         let hcl_data: HclData = report.as_slice().try_into().unwrap();
         let snp_report = hcl_data.report().snp_report();
         let claim = parse_tee_evidence(snp_report);

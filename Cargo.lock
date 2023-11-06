@@ -526,22 +526,16 @@ name = "attestation-service"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "asn1-rs",
  "assert-json-diff",
  "async-trait",
- "az-snp-vtpm 0.3.0",
  "base64 0.21.5",
- "bincode",
- "byteorder",
- "cbor-diag",
  "cfg-if",
  "chrono",
  "codicon",
- "csv-rs",
+ "csv-rs 0.1.0 (git+https://gitee.com/anolis/csv-rs?rev=9d8882e)",
  "ear",
  "eventlog-rs",
  "futures",
- "hex",
  "jsonwebtoken",
  "jwt",
  "kbs-types",
@@ -551,6 +545,7 @@ dependencies = [
  "path-clean",
  "prost",
  "rand",
+ "reference-value-provider-service",
  "rsa 0.9.3",
  "rstest",
  "scroll",
@@ -558,14 +553,9 @@ dependencies = [
  "serde_json",
  "serde_variant",
  "serial_test",
- "sev",
- "sgx-dcap-quoteverify-rs",
  "sha2",
  "shadow-rs",
- "sled",
- "strum 0.24.1",
- "strum_macros 0.24.3",
- "tempfile",
+ "strum 0.25.0",
  "testing_logger",
  "time",
  "tokio",
@@ -573,8 +563,8 @@ dependencies = [
  "tonic-build",
  "uuid",
  "veraison-apiclient",
+ "verifier",
  "walkdir",
- "x509-parser",
 ]
 
 [[package]]
@@ -3617,6 +3607,29 @@ dependencies = [
  "getrandom",
  "redox_syscall 0.2.16",
  "thiserror",
+]
+
+[[package]]
+name = "reference-value-provider-service"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "assert-json-diff",
+ "async-trait",
+ "base64 0.21.5",
+ "cfg-if",
+ "chrono",
+ "log",
+ "rstest",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "shadow-rs",
+ "sled",
+ "strum 0.25.0",
+ "tempfile",
+ "tokio",
+ "tonic-build",
 ]
 
 [[package]]

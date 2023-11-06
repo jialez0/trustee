@@ -19,7 +19,6 @@ pub mod policy_engine;
 pub mod rvps;
 mod token;
 mod utils;
-pub mod verifier;
 
 use crate::token::AttestationTokenBroker;
 
@@ -113,7 +112,7 @@ impl AttestationService {
     pub async fn evaluate(&self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
         let attestation = serde_json::from_str::<Attestation>(attestation)
             .context("Failed to deserialize Attestation")?;
-        let verifier = crate::verifier::to_verifier(&tee)?;
+        let verifier = verifier::to_verifier(&tee)?;
 
         let claims_from_tee_evidence = verifier
             .evaluate(nonce.to_string(), &attestation)
