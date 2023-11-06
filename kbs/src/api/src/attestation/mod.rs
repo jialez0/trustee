@@ -8,6 +8,7 @@ use anyhow::*;
 use async_trait::async_trait;
 #[cfg(any(feature = "coco-as-builtin", feature = "coco-as-builtin-no-verifier"))]
 use attestation_service::config::Config as AsConfig;
+use attestation_service::policy_engine::SetPolicyInput;
 #[cfg(feature = "coco-as-grpc")]
 use coco::grpc::GrpcConfig;
 use kbs_types::Tee;
@@ -27,7 +28,7 @@ pub mod amber;
 #[async_trait]
 pub trait Attest: Send + Sync {
     /// Set Attestation Policy
-    async fn set_policy(&mut self, _input: as_types::SetPolicyInput) -> Result<()> {
+    async fn set_policy(&mut self, _input: SetPolicyInput) -> Result<()> {
         Err(anyhow!("Set Policy API is unimplemented"))
     }
 

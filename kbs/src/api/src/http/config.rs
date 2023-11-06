@@ -2,13 +2,15 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+use attestation_service::policy_engine::SetPolicyInput;
+
 use super::*;
 
 #[cfg(feature = "as")]
 /// POST /attestation-policy
 pub(crate) async fn attestation_policy(
     request: HttpRequest,
-    input: web::Json<as_types::SetPolicyInput>,
+    input: web::Json<SetPolicyInput>,
     user_pub_key: web::Data<Option<Ed25519PublicKey>>,
     insecure: web::Data<bool>,
     attestation_service: web::Data<AttestationService>,

@@ -5,7 +5,9 @@
 use crate::attestation::Attest;
 use anyhow::*;
 use async_trait::async_trait;
-use attestation_service::{config::Config as AsConfig, AttestationService};
+use attestation_service::{
+    config::Config as AsConfig, policy_engine::SetPolicyInput, AttestationService,
+};
 use kbs_types::Tee;
 
 pub struct Native {
@@ -14,7 +16,7 @@ pub struct Native {
 
 #[async_trait]
 impl Attest for Native {
-    async fn set_policy(&mut self, input: as_types::SetPolicyInput) -> Result<()> {
+    async fn set_policy(&mut self, input: SetPolicyInput) -> Result<()> {
         self.inner.set_policy(input).await
     }
     async fn verify(&mut self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
