@@ -3619,7 +3619,10 @@ dependencies = [
  "base64 0.21.5",
  "cfg-if",
  "chrono",
+ "clap 3.2.25",
+ "env_logger 0.10.0",
  "log",
+ "prost",
  "rstest",
  "serde",
  "serde_json",
@@ -3629,6 +3632,7 @@ dependencies = [
  "strum 0.25.0",
  "tempfile",
  "tokio",
+ "tonic 0.8.3",
  "tonic-build",
 ]
 
@@ -3975,38 +3979,6 @@ name = "rustversion"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ffc183a10b4478d04cbbbfc96d0873219d962dd5accaff2ffbd4ceb7df837f4"
-
-[[package]]
-name = "rvps"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "attestation-service",
- "clap 3.2.25",
- "env_logger 0.10.0",
- "log",
- "prost",
- "serde_json",
- "shadow-rs",
- "tokio",
- "tonic 0.8.3",
- "tonic-build",
-]
-
-[[package]]
-name = "rvps-client"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap 3.2.25",
- "env_logger 0.10.0",
- "log",
- "prost",
- "shadow-rs",
- "tokio",
- "tonic 0.8.3",
- "tonic-build",
-]
 
 [[package]]
 name = "ryu"

@@ -1,12 +1,13 @@
-use crate::token::{AttestationTokenBrokerType, AttestationTokenConfig};
+use crate::{
+    rvps::RvpsConfig,
+    token::{AttestationTokenBrokerType, AttestationTokenConfig},
+};
 
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
 use std::convert::TryFrom;
 use std::fs::File;
 use std::path::{Path, PathBuf};
-
-use crate::rvps::store::StoreType;
 
 /// Environment macro for Attestation Service work dir.
 const AS_WORK_DIR: &str = "AS_WORK_DIR";
@@ -20,7 +21,8 @@ pub struct Config {
     /// Policy Engine type.
     pub policy_engine: String,
 
-    pub rvps_store_type: StoreType,
+    /// Configurations for RVPS.
+    pub rvps_config: RvpsConfig,
 
     /// The Attestation Result Token Broker type.
     ///
@@ -42,7 +44,7 @@ impl Default for Config {
         Config {
             work_dir,
             policy_engine: "opa".to_string(),
-            rvps_store_type: StoreType::LocalFs,
+            rvps_config: RvpsConfig::default(),
             attestation_token_broker: AttestationTokenBrokerType::Simple,
             attestation_token_config: AttestationTokenConfig::default(),
         }

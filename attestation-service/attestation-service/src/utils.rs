@@ -6,8 +6,7 @@
 use anyhow::*;
 use serde_json::{Map, Value};
 use serde_variant::to_variant_name;
-
-use crate::verifier::TeeEvidenceParsedClaim;
+use verifier::TeeEvidenceParsedClaim;
 
 /// This funciton will transpose the following structured json
 /// ```json
@@ -28,7 +27,7 @@ use crate::verifier::TeeEvidenceParsedClaim;
 pub fn flatten_claims(
     tee: kbs_types::Tee,
     claims: &TeeEvidenceParsedClaim,
-) -> Result<TeeEvidenceParsedClaim> {
+) -> Result<Map<String, Value>> {
     let mut map = Map::new();
     let tee_type = to_variant_name(&tee)?;
     match claims {
@@ -40,7 +39,7 @@ pub fn flatten_claims(
         _ => bail!("input claims must be a map"),
     }
 
-    Ok(serde_json::Value::Object(map))
+    Ok(map)
 }
 
 /// Recursion algorithm helper of `flatten_claims`
