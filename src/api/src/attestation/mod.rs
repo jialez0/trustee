@@ -5,6 +5,7 @@
 use crate::config::Config;
 use anyhow::*;
 use async_trait::async_trait;
+use attestation_service::policy_engine::PolicyDigest;
 use kbs_types::Tee;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -23,6 +24,14 @@ pub trait Attest: Send + Sync {
     /// Set Attestation Policy
     async fn set_policy(&mut self, _input: as_types::SetPolicyInput) -> Result<()> {
         Err(anyhow!("Set Policy API is unimplemented"))
+    }
+
+    async fn remove_policy(&mut self, _policy_id: String) -> Result<()> {
+        bail!("Remove Policy API is unimplemented")
+    }
+
+    async fn list_policy(&self) -> Result<Vec<PolicyDigest>> {
+        bail!("Remove Policy API is unimplemented")
     }
 
     /// Verify Attestation Evidence

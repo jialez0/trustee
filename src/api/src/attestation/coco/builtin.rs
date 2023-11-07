@@ -5,7 +5,9 @@
 use crate::attestation::Attest;
 use anyhow::*;
 use async_trait::async_trait;
-use attestation_service::{config::Config as AsConfig, AttestationService};
+use attestation_service::{
+    config::Config as AsConfig, policy_engine::PolicyDigest, AttestationService,
+};
 use kbs_types::Tee;
 use std::path::Path;
 
@@ -17,6 +19,12 @@ pub struct Native {
 impl Attest for Native {
     async fn set_policy(&mut self, input: as_types::SetPolicyInput) -> Result<()> {
         self.inner.set_policy(input).await
+    }
+    async fn remove_policy(&mut self, policy_id: String) -> Result<()> {
+        self.inner.remove_policy(policy_id).await
+    }
+    async fn list_policy(&self) -> Result<Vec<PolicyDigest>> {
+        self.inner.list_policy().await
     }
     async fn verify(&mut self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
         self.inner.evaluate(tee, nonce, attestation).await

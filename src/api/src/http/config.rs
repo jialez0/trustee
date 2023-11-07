@@ -6,7 +6,7 @@ use super::*;
 
 #[cfg(feature = "as")]
 /// POST /attestation-policy
-pub(crate) async fn attestation_policy(
+pub(crate) async fn set_attestation_policy(
     request: HttpRequest,
     input: web::Json<as_types::SetPolicyInput>,
     user_pub_key: web::Data<Option<Ed25519PublicKey>>,
@@ -33,6 +33,74 @@ pub(crate) async fn attestation_policy(
         .map_err(|e| Error::PolicyEndpoint(format!("Set policy error {e}")))?;
 
     Ok(HttpResponse::Ok().finish())
+}
+
+#[cfg(feature = "as")]
+/// DELETE /attestation-policy
+pub(crate) async fn delete_attestation_policy(
+    request: HttpRequest,
+    input: web::Data<String>,
+    user_pub_key: web::Data<Option<Ed25519PublicKey>>,
+    insecure: web::Data<bool>,
+    attestation_service: web::Data<AttestationService>,
+) -> Result<HttpResponse> {
+    if !insecure.get_ref() {
+        let user_pub_key = user_pub_key
+            .as_ref()
+            .as_ref()
+            .ok_or(Error::UserPublicKeyNotProvided)?;
+
+        validate_auth(&request, user_pub_key).map_err(|e| {
+            Error::FailedAuthentication(format!("Requester is not an authorized user: {e}"))
+        })?;
+    }
+
+    attestation_service
+        .0
+        .lock()
+        .await
+        .remove_policy(input.into_inner().to_string())
+        .await
+        .map_err(|e| Error::PolicyEndpoint(format!("Remove policy error {e}")))?;
+
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[cfg(feature = "as")]
+/// GET /attestation-policy
+pub(crate) async fn get_attestation_policy(
+    request: HttpRequest,
+    user_pub_key: web::Data<Option<Ed25519PublicKey>>,
+    insecure: web::Data<bool>,
+    attestation_service: web::Data<AttestationService>,
+) -> Result<HttpResponse> {
+    if !insecure.get_ref() {
+        let user_pub_key = user_pub_key
+            .as_ref()
+            .as_ref()
+            .ok_or(Error::UserPublicKeyNotProvided)?;
+
+        validate_auth(&request, user_pub_key).map_err(|e| {
+            Error::FailedAuthentication(format!("Requester is not an authorized user: {e}"))
+        })?;
+    }
+
+    let policy_list = attestation_service
+        .0
+        .lock()
+        .await
+        .list_policy()
+        .await
+        .map_err(|e| Error::PolicyEndpoint(format!("Set policy error {e}")))?;
+
+    let body = serde_json::to_string(&serde_json::json!({
+        "policys": policy_list,
+    }))
+    .map_err(|e| Error::PolicyEndpoint(format!("Serialize Policy List failed {e}")))?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body))
 }
 
 #[cfg(feature = "policy")]

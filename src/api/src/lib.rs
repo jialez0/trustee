@@ -271,7 +271,9 @@ impl ApiServer {
                     .service(web::resource(kbs_path!("attestation")).route(web::post().to(http::attestation)))
                     .service(
                         web::resource(kbs_path!("attestation-policy"))
-                            .route(web::post().to(http::attestation_policy)),
+                            .route(web::get().to(http::get_attestation_policy))
+                            .route(web::post().to(http::set_attestation_policy))
+                            .route(web::delete().to(http::delete_attestation_policy)),
                     );
             }}
             cfg_if::cfg_if! {
