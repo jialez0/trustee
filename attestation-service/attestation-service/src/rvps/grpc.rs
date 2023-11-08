@@ -6,7 +6,7 @@ use self::rvps_api::{
     ReferenceValueQueryRequest, ReferenceValueRegisterRequest,
 };
 
-use super::RVPSAPI;
+use super::RvpsApi;
 
 pub mod rvps_api {
     tonic::include_proto!("reference");
@@ -27,7 +27,7 @@ impl Agent {
 }
 
 #[async_trait::async_trait]
-impl RVPSAPI for Agent {
+impl RvpsApi for Agent {
     async fn verify_and_extract(&mut self, message: &str) -> Result<()> {
         let req = tonic::Request::new(ReferenceValueRegisterRequest {
             message: message.to_string(),
@@ -53,6 +53,7 @@ impl RVPSAPI for Agent {
             .query_reference_value(req)
             .await?
             .into_inner();
+
         let trust_digest = serde_json::from_str(&res.reference_value_results)?;
         Ok(trust_digest)
     }

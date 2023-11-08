@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use strum::EnumString;
 
 pub mod opa;
 
@@ -37,12 +38,15 @@ impl PolicyEngineType {
 
 #[async_trait]
 pub trait PolicyEngine {
+    /// The result is a key-value map.
+    /// - `key`: the policy id
+    /// - `value`: (whether the policy passes, the outputs about the policy)
     async fn evaluate(
         &self,
         reference_data_map: HashMap<String, Vec<String>>,
         input: String,
-        policy_id: Option<String>,
-    ) -> Result<String>;
+        policy_ids: Vec<String>,
+    ) -> Result<HashMap<String, (bool, String)>>;
 
     async fn set_policy(&mut self, input: SetPolicyInput) -> Result<()>;
 }

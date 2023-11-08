@@ -6,7 +6,7 @@ members = [
     "attestation-service/attestation-service",
     "attestation-service/verifier",
     "attestation-service/rvps",
-    "attestation-service/bin/grpc-as",
+    "attestation-service/attestation-service"
 ]
 
 [workspace.package]
@@ -25,7 +25,7 @@ attestation-service = { path = "attestation-service/attestation-service", defaul
 base64 = "0.21"
 cfg-if = "1.0.0"
 chrono = "0.4.19"
-clap = { version = "3.2.6", features = ["derive"] }
+clap = { version = "4", features = ["derive"] }
 env_logger = "0.10.0"
 kbs-types.path = "attestation-service/as-types"
 log = "0.4.17"

@@ -62,51 +62,67 @@ impl PolicyEngine for OPA {
         &self,
         reference_data_map: HashMap<String, Vec<String>>,
         input: String,
-        policy_id: Option<String>,
-    ) -> Result<String> {
-        let policy_file_path = format!(
-            "{}/{}.rego",
-            self.policy_dir_path
-                .to_str()
-                .ok_or_else(|| anyhow!("Miss Policy DirPath"))?,
-            policy_id.unwrap_or("default".to_string())
-        );
-        let policy = tokio::fs::read_to_string(policy_file_path)
-            .await
-            .map_err(|e| anyhow!("Read OPA policy file failed: {:?}", e))?;
+        policy_ids: Vec<String>,
+    ) -> Result<HashMap<String, (bool, String)>> {
+        let mut res: HashMap<String, (bool, String)> = HashMap::new();
 
-        let policy_go = GoString {
-            p: policy.as_ptr() as *const c_char,
-            n: policy.len() as isize,
-        };
+        let policy_dir_path = self
+            .policy_dir_path
+            .to_str()
+            .ok_or_else(|| anyhow!("Miss Policy DirPath"))?;
 
-        let reference = serde_json::json!({ "reference": reference_data_map }).to_string();
+        for policy_id in policy_ids {
+            let policy_file_path = format!("{policy_dir_path}/{policy_id}.rego");
 
-        let reference_go = GoString {
-            p: reference.as_ptr() as *const c_char,
-            n: reference.len() as isize,
-        };
+            let policy = tokio::fs::read_to_string(policy_file_path)
+                .await
+                .map_err(|e| anyhow!("Read OPA policy file failed: {:?}", e))?;
 
-        let input_go = GoString {
-            p: input.as_ptr() as *const c_char,
-            n: input.len() as isize,
-        };
+            let policy_go = GoString {
+                p: policy.as_ptr() as *const c_char,
+                n: policy.len() as isize,
+            };
 
-        // Call the function exported by cgo and process the returned decision
-        let decision_buf: *mut c_char = unsafe { evaluateGo(policy_go, reference_go, input_go) };
-        let decision_str: &CStr = unsafe { CStr::from_ptr(decision_buf) };
-        let res = decision_str.to_str()?.to_string();
-        debug!("Evaluated: {}", res);
-        if res.starts_with("Error::") {
-            return Err(anyhow!(res));
-        }
+            let reference = serde_json::json!({ "reference": reference_data_map }).to_string();
 
-        // If a clear approval opinion is given in the evaluation report,
-        // the rejection information will be reflected in the evaluation failure return value.
-        let res_kv: Value = serde_json::from_str(&res)?;
-        if let Some(allow) = res_kv["allow"].as_bool() {
+            let reference_go = GoString {
+                p: reference.as_ptr() as *const c_char,
+                n: reference.len() as isize,
+            };
+
+            let input_go = GoString {
+                p: input.as_ptr() as *const c_char,
+                n: input.len() as isize,
+            };
+
+            // Call the function exported by cgo and process the returned decision
+            let decision_buf: *mut c_char =
+                unsafe { evaluateGo(policy_go, reference_go, input_go) };
+            let decision_str: &CStr = unsafe { CStr::from_ptr(decision_buf) };
+            let policy_res = decision_str.to_str()?.to_string();
+            debug!("Evaluated: {}", policy_res);
+            if policy_res.starts_with("Error::") {
+                bail!("OPA verification failed: {policy_res}");
+            }
+
+            // If a clear approval opinion is given in the evaluation report,
+            // the rejection information will be reflected in the evaluation failure return value.
+            let res_kv: Value = serde_json::from_str(&policy_res)?;
+
+            // only if there is a field named `allow` in the evaluation report and
+            // it is false, the evaluation fails. Otherwise the evaluation will be
+            // treated as succees.
+            let allow = res_kv
+                .get("allow")
+                .map(|a| a.as_bool())
+                .map(|a| a.unwrap_or(true))
+                .unwrap_or(true);
+
             if !allow {
-                bail!("Untrusted TEE evidence")
+                warn!("TEE evidence does not pass policy {policy_id}");
+                res.insert(policy_id.to_owned(), (false, policy_res));
+            } else {
+                res.insert(policy_id.to_owned(), (true, policy_res));
             }
         }
 
@@ -172,15 +188,21 @@ mod tests {
             .evaluate(
                 reference_data.clone(),
                 dummy_input(5, 5),
-                Some(default_policy_id.clone()),
+                vec![default_policy_id.clone()],
             )
             .await;
-        assert!(res.is_ok(), "OPA execution() should be success");
+        let res = res.expect("OPA execution should succeed");
 
+        res.iter()
+            .for_each(|r| assert!(r.1 .0, "Item check should succeed"));
         let res = opa
-            .evaluate(reference_data, dummy_input(0, 0), Some(default_policy_id))
+            .evaluate(reference_data, dummy_input(0, 0), vec![default_policy_id])
             .await;
-        assert!(res.is_err(), "OPA execution() should be failed");
+
+        let res = res.expect("OPA execution should succeed");
+
+        res.iter()
+            .for_each(|r| assert!(!r.1 .0, "Item check should fail"));
     }
 
     #[tokio::test]

@@ -1,7 +1,10 @@
 use anyhow::{anyhow, Result};
 use attestation_service::policy_engine::SetPolicyInput;
 use attestation_service::{config::Config, AttestationService as Service, Tee};
-use log::{debug, info};
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
+use log::{debug, info, warn};
+use std::net::SocketAddr;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -22,8 +25,6 @@ use crate::rvps_api::{
     ReferenceValueRegisterResponse,
 };
 
-const DEFAULT_SOCK: &str = "127.0.0.1:3000";
-
 fn to_kbs_tee(tee: GrpcTee) -> Tee {
     match tee {
         GrpcTee::Sev => Tee::Sev,
@@ -40,23 +41,17 @@ pub struct AttestationServer {
 }
 
 impl AttestationServer {
-    pub async fn new(rvps_addr: Option<&str>, config_path: Option<&str>) -> Result<Self> {
+    pub async fn new(config_path: Option<String>) -> Result<Self> {
         let config = match config_path {
-            Some(path) => Config::try_from(Path::new(path))
+            Some(path) => Config::try_from(Path::new(&path))
                 .map_err(|e| anyhow!("Read AS config file failed: {:?}", e))?,
-            None => Config::default(),
+            None => {
+                warn!("no config path specified, use a default one.");
+                Config::default()
+            }
         };
 
-        let service = match rvps_addr {
-            Some(addr) => {
-                info!("Connect to remote RVPS [{addr}] (gRPC Mode)");
-                Service::new_with_rvps_grpc(addr, config).await?
-            }
-            None => {
-                info!("Start a local RVPS (Server mode)");
-                Service::new(config)?
-            }
-        };
+        let service = Service::new(config).await?;
 
         Ok(Self {
             attestation_service: service,
@@ -93,20 +88,39 @@ impl AttestationService for Arc<RwLock<AttestationServer>> {
     ) -> Result<Response<AttestationResponse>, Status> {
         let request: AttestationRequest = request.into_inner();
 
-        debug!("Evidence: {}", &request.evidence);
+        debug!("Get new attestation request: {request:#?}");
+
+        let evidence = STANDARD
+            .decode(request.evidence)
+            .map_err(|e| Status::aborted(format!("base64 decode evidence: {e}")))?;
+        let tee = to_kbs_tee(
+            GrpcTee::from_i32(request.tee)
+                .ok_or_else(|| Status::aborted(format!("Invalid TEE {}", request.tee)))?,
+        );
+        let runtime_data = request
+            .runtime_data
+            .iter()
+            .map(|data_item| {
+                STANDARD
+                    .decode(data_item)
+                    .map_err(|e| Status::aborted(format!("base64 decode runtime data: {e}")))
+            })
+            .collect::<std::result::Result<Vec<Vec<u8>>, Status>>()?;
+        let init_data: Vec<Vec<u8>> = request
+            .init_data
+            .iter()
+            .map(|data_item| {
+                STANDARD
+                    .decode(data_item)
+                    .map_err(|e| Status::aborted(format!("base64 decode init data: {e}")))
+            })
+            .collect::<std::result::Result<Vec<Vec<u8>>, Status>>()?;
 
         let attestation_token = self
             .read()
             .await
             .attestation_service
-            .evaluate(
-                to_kbs_tee(
-                    GrpcTee::from_i32(request.tee)
-                        .ok_or_else(|| Status::aborted(format!("Invalid TEE {}", request.tee)))?,
-                ),
-                &request.nonce,
-                &request.evidence,
-            )
+            .evaluate(evidence, tee, runtime_data, init_data, request.policy_ids)
             .await
             .map_err(|e| Status::aborted(format!("Attestation: {e}")))?;
 
@@ -135,14 +149,14 @@ impl ReferenceValueProviderService for Arc<RwLock<AttestationServer>> {
     ) -> Result<Response<ReferenceValueRegisterResponse>, Status> {
         let request = request.into_inner();
 
-        info!("registry reference value: {}", request.message);
+        info!("register reference value: {}", request.message);
 
         let message = serde_json::from_str(&request.message)
             .map_err(|e| Status::aborted(format!("Parse message: {e}")))?;
         self.write()
             .await
             .attestation_service
-            .registry_reference_value(message)
+            .register_reference_value(message)
             .await
             .map_err(|e| Status::aborted(format!("Register reference value: {e}")))?;
 
@@ -151,17 +165,10 @@ impl ReferenceValueProviderService for Arc<RwLock<AttestationServer>> {
     }
 }
 
-pub async fn start(
-    socket: Option<&str>,
-    rvps_addr: Option<&str>,
-    config_path: Option<&str>,
-) -> Result<()> {
-    let socket = socket.unwrap_or(DEFAULT_SOCK).parse()?;
-    info!("Listen socket: {}", &socket);
+pub async fn start(socket: SocketAddr, config_path: Option<String>) -> Result<()> {
+    info!("Listen socket: {socket}");
 
-    let attestation_server = Arc::new(RwLock::new(
-        AttestationServer::new(rvps_addr, config_path).await?,
-    ));
+    let attestation_server = Arc::new(RwLock::new(AttestationServer::new(config_path).await?));
 
     Server::builder()
         .add_service(AttestationServiceServer::new(attestation_server.clone()))

@@ -21,8 +21,9 @@ use anyhow::{anyhow, Context, Result};
 use config::Config;
 pub use kbs_types::{Attestation, Tee};
 use policy_engine::{PolicyEngine, PolicyEngineType, SetPolicyInput};
-use rvps::RVPSAPI;
+use rvps::RvpsApi;
 use serde_json::json;
+use sha2::{Digest, Sha384};
 use std::{collections::HashMap, str::FromStr};
 use tokio::fs;
 
@@ -31,7 +32,7 @@ use crate::utils::flatten_claims;
 pub struct AttestationService {
     _config: Config,
     policy_engine: Box<dyn PolicyEngine + Send + Sync>,
-    rvps: Box<dyn RVPSAPI + Send + Sync>,
+    rvps: Box<dyn RvpsApi + Send + Sync>,
     token_broker: Box<dyn AttestationTokenBroker + Send + Sync>,
 }
 
@@ -50,7 +51,7 @@ impl AttestationService {
 
         let rvps = config
             .rvps_config
-            .into_rvps()
+            .to_rvps()
             .await
             .context("create rvps failed.")?;
 
@@ -74,15 +75,32 @@ impl AttestationService {
             .map_err(|e| anyhow!("Cannot Set Policy: {:?}", e))
     }
 
+    fn accumulate_hash(materials: &[Vec<u8>]) -> Option<Vec<u8>> {
+        if materials.is_empty() {
+            return None;
+        }
+        let mut hasher = Sha384::new();
+        materials.iter().for_each(|m| hasher.update(m));
+        Some(hasher.finalize().to_vec())
+    }
+
     /// Evaluate Attestation Evidence.
     /// Issue an attestation results token which contain TCB status and TEE public key.
-    pub async fn evaluate(&self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
-        let attestation = serde_json::from_str::<Attestation>(attestation)
-            .context("Failed to deserialize Attestation")?;
+    pub async fn evaluate(
+        &self,
+        evidence: Vec<u8>,
+        tee: Tee,
+        runtime_data: Vec<Vec<u8>>,
+        init_data: Vec<Vec<u8>>,
+        policy_ids: Vec<String>,
+    ) -> Result<String> {
         let verifier = verifier::to_verifier(&tee)?;
 
+        let report_data = Self::accumulate_hash(&runtime_data);
+        let init_data_hash = Self::accumulate_hash(&init_data);
+
         let claims_from_tee_evidence = verifier
-            .evaluate(nonce.to_string(), &attestation)
+            .evaluate(&evidence, report_data.as_deref(), init_data_hash.as_deref())
             .await
             .map_err(|e| anyhow!("Verifier evaluate failed: {e:?}"))?;
 
@@ -93,19 +111,29 @@ impl AttestationService {
         let reference_data_map = self
             .get_reference_data(flattened_claims.keys())
             .await
-            .map_err(|e| anyhow!("Generate reference data failed{:?}", e))?;
+            .context("Generate reference data failed")?;
 
         // Now only support using default policy to evaluate
         let evaluation_report = self
             .policy_engine
-            .evaluate(reference_data_map, tcb.clone(), None)
+            .evaluate(reference_data_map, tcb_json, policy_ids.clone())
             .await
             .map_err(|e| anyhow!("Policy Engine evaluation failed: {e}"))?;
 
+        let evaluation_reports: Vec<_> = evaluation_report
+            .into_iter()
+            .map(|(k, v)| {
+                json!({
+                    "policy-id": k,
+                    "passed": v.0,
+                    "evaluation-report": v.1,
+                })
+            })
+            .collect();
         let token_claims = json!({
-            "tee-pubkey": attestation.tee_pubkey.clone(),
+            "policy-ids": policy_ids,
             "tcb-status": flattened_claims,
-            "evaluation-report": evaluation_report,
+            "evaluation-reports": evaluation_reports,
         });
         let attestation_results_token = self.token_broker.issue(token_claims)?;
 
@@ -128,7 +156,7 @@ impl AttestationService {
     }
 
     /// Registry a new reference value
-    pub async fn registry_reference_value(&mut self, message: &str) -> Result<()> {
+    pub async fn register_reference_value(&mut self, message: &str) -> Result<()> {
         self.rvps.verify_and_extract(message).await
     }
 }

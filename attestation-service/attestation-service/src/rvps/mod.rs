@@ -11,7 +11,7 @@ use serde::Deserialize;
 /// store reference values from it.
 /// * `get_digests` gets trusted digests by the artifact's name.
 #[async_trait::async_trait]
-pub trait RVPSAPI {
+pub trait RvpsApi {
     /// Verify the given message and register the reference value included.
     async fn verify_and_extract(&mut self, message: &str) -> Result<()>;
 
@@ -55,12 +55,27 @@ impl Default for RvpsConfig {
 }
 
 impl RvpsConfig {
-    pub async fn into_rvps(&self) -> Result<Box<dyn RVPSAPI + Send + Sync>> {
+    /// If remote addr is specified and the feature `rvps-grpc` is enabled when
+    /// built, will try to connect the remote rvps. Or, will use a built-in rvps.
+    pub async fn to_rvps(&self) -> Result<Box<dyn RvpsApi + Send + Sync>> {
         cfg_if::cfg_if! {
             if #[cfg(feature = "rvps-grpc")] {
-                Ok(Box::new(grpc::Agent::new(&self.remote_addr).await?) as Box<dyn RVPSAPI + Send + Sync>)
+                if !self.remote_addr.is_empty() {
+                    info!("connect to remote RVPS: {}", self.remote_addr);
+                    Ok(Box::new(grpc::Agent::new(&self.remote_addr).await?) as Box<dyn RvpsApi + Send + Sync>)
+                } else {
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "rvps-builtin")] {
+                            warn!("No RVPS address provided and will launch a built-in rvps");
+                            Ok(Box::new(builtin::Rvps::new(&self.store_type)?) as Box<dyn RvpsApi + Send + Sync>)
+                        } else {
+                            Err(anyhow!("either feature `rvps-grpc` or `rvps-builtin` should be enabled."))
+                        }
+                    }
+                }
             } else if #[cfg(feature = "rvps-builtin")] {
-                Ok(Box::new(builtin::Rvps::new(&self.store_type)) as Box<dyn RVPSAPI + Send + Sync>)
+                info!("launch a built-in RVPS.");
+                Ok(Box::new(builtin::Rvps::new(&self.store_type)) as Box<dyn RvpsApi + Send + Sync>)
             } else {
                 Err(anyhow!("either feature `rvps-grpc` or `rvps-builtin` should be enabled."))
             }

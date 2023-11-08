@@ -13,9 +13,12 @@ enum Tee {
 
 message AttestationRequest {
     Tee tee = 1;
-    string nonce = 2;
-    string evidence = 3;
+    string evidence = 2;
+    repeated string runtime_data = 3;
+    repeated string init_data = 4;
+    repeated string policy_ids = 5;
 }
+
 message AttestationResponse {
     string attestation_token = 1;
 }

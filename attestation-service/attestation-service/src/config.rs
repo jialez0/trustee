@@ -56,7 +56,10 @@ impl TryFrom<&Path> for Config {
     ///    {
     ///        "work_dir": "/var/lib/attestation-service/",
     ///        "policy_engine": "opa",
-    ///        "rvps_store_type": "LocalFs",
+    ///        "rvps_config": {
+    ///            "store_type": "LocalFs",
+    ///            "remote_addr": "http://127.0.0.1:50002"
+    ///        },
     ///        "attestation_token_broker": "Simple",
     ///        "attestation_token_config": {
     ///            "duration_min": 5

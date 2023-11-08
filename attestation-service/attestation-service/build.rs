@@ -13,7 +13,6 @@ fn real_main() -> Result<(), String> {
             &format!("{out_dir}/libcgo.a"),
             "-buildmode=c-archive",
             "opa.go",
-            "intoto.go",
         ])
         .current_dir(cgo_dir)
         .output()
@@ -25,7 +24,6 @@ fn real_main() -> Result<(), String> {
     }
 
     tonic_build::compile_protos("../protos/attestation.proto").map_err(|e| format!("{e}"))?;
-
     tonic_build::compile_protos("../protos/reference.proto").map_err(|e| format!("{e}"))?;
 
     Ok(())
