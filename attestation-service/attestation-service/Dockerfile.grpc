@@ -22,7 +22,7 @@ RUN curl -L https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key 
     apt-get update && apt-get install -y libtdx-attest-dev libsgx-dcap-quote-verify-dev
 
 # Build and Install gRPC attestation-service
-RUN cargo install --path attestation-service/bin/grpc-as
+RUN cargo install --path attestation-service/attestation-service --bin as-grpc --no-default-features --features rvps-grpc,all-verifier,grpc-bin,rvps-builtin
 
 
 FROM ubuntu:22.04
@@ -42,10 +42,12 @@ RUN curl -L https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key 
 # Copy TPM Runtime Dependencies
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libtss* /usr/lib/x86_64-linux-gnu
 
-COPY --from=builder /usr/local/cargo/bin/grpc-as /usr/local/bin/grpc-as
+COPY --from=builder /usr/local/cargo/bin/as-grpc /usr/local/bin/as-grpc
+
+COPY ./attestation-service/attestation-service/config.json /etc/config.json
 
 VOLUME /opt/confidential-containers/attestation-service
 
-CMD ["grpc-as", "--socket", "0.0.0.0:50004"]
+CMD ["as-grpc", "--socket", "0.0.0.0:50004", "--config-file", "/etc/config.json"]
 
 EXPOSE 50004

@@ -1,30 +1,14 @@
-PROJDIR := $(shell readlink -f ..)
-TOP_DIR := .
-CUR_DIR := $(shell pwd)
-PREFIX := /usr/local
-TARGET_DIR := ../target
-BIN_NAMES := grpc-as
-
-DEBUG ?=
-DESTDIR ?= $(PREFIX)/bin
-
-ifdef DEBUG
-    release :=
-    TARGET_DIR := $(TARGET_DIR)/debug
-else
-    release := --release
-    TARGET_DIR := $(TARGET_DIR)/release
-endif
-
-build: grpc-as
-
-grpc-as:
-	cargo build --bin grpc-as $(release)
+build:
+	@echo "build CoCo-AS (gRPC and RESTful)"
+	cd attestation-service && make build
+	@echo build RVPS and client tool
+	cd rvps && make build
 
 install:
-	for bin_name in $(BIN_NAMES); do \
-		install -D -m0755 $(TARGET_DIR)/$$bin_name $(DESTDIR); \
-	done
+	@echo "install CoCo-AS (gRPC and RESTful)"
+	cd attestation-service && make install
+	@echo install RVPS and client tool
+	cd rvps && make install
 
 clean:
 	cargo clean
