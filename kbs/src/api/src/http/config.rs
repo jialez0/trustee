@@ -2,19 +2,19 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-use attestation_service::policy_engine::SetPolicyInput;
-
 use super::*;
 
 #[cfg(feature = "as")]
 /// POST /attestation-policy
 pub(crate) async fn attestation_policy(
     request: HttpRequest,
-    input: web::Json<SetPolicyInput>,
+    input: web::Bytes,
     user_pub_key: web::Data<Option<Ed25519PublicKey>>,
     insecure: web::Data<bool>,
     attestation_service: web::Data<AttestationService>,
 ) -> Result<HttpResponse> {
+    use serde_json::Value;
+
     if !insecure.get_ref() {
         let user_pub_key = user_pub_key
             .as_ref()
@@ -26,11 +26,14 @@ pub(crate) async fn attestation_policy(
         })?;
     }
 
+    let set_policy_request = String::from_utf8(input.as_ref().to_vec())
+        .map_err(|e| Error::PolicyEndpoint(format!("Illegal input SetPolicy request: {e}")))?;
+
     attestation_service
         .0
         .lock()
         .await
-        .set_policy(input.into_inner())
+        .set_policy(&set_policy_request)
         .await
         .map_err(|e| Error::PolicyEndpoint(format!("Set policy error {e}")))?;
 

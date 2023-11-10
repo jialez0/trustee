@@ -5,7 +5,8 @@
 use crate::attestation::Attest;
 use anyhow::*;
 use async_trait::async_trait;
-use kbs_types::Tee;
+use base64::{engine::general_purpose::STANDARD, Engine};
+use kbs_types::{Attestation, Tee};
 use log::info;
 use serde::Deserialize;
 use tonic::transport::Channel;
@@ -71,9 +72,9 @@ impl Grpc {
 
 #[async_trait]
 impl Attest for Grpc {
-    async fn set_policy(&mut self, input: as_types::SetPolicyInput) -> Result<()> {
+    async fn set_policy(&mut self, input: &str) -> Result<()> {
         let req = tonic::Request::new(SetPolicyRequest {
-            input: serde_json::to_string(&input)?,
+            input: input.to_string(),
         });
 
         let _ = self
@@ -86,10 +87,21 @@ impl Attest for Grpc {
     }
 
     async fn verify(&mut self, tee: Tee, nonce: &str, attestation: &str) -> Result<String> {
+        let attestation: Attestation =
+            serde_json::from_str(attestation).context("parse Attestation")?;
+        let runtime_data = vec![
+            STANDARD.encode(nonce),
+            STANDARD.encode(attestation.tee_pubkey.k_mod),
+            STANDARD.encode(attestation.tee_pubkey.k_exp),
+        ];
+
+        let evidence = STANDARD.encode(attestation.tee_evidence);
         let req = tonic::Request::new(AttestationRequest {
             tee: to_grpc_tee(tee) as i32,
-            nonce: String::from(nonce),
-            evidence: String::from(attestation),
+            evidence,
+            runtime_data,
+            init_data: Vec::new(),
+            policy_ids: vec!["default".to_string()],
         });
 
         let token = self
