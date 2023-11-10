@@ -28,8 +28,12 @@ jobs:
     
     - name: Build gRPC AS Container Image
       run: |
-        DOCKER_BUILDKIT=1 docker build -t attestation-service:latest . -f attestation-service/Dockerfile.as
+        DOCKER_BUILDKIT=1 docker build -t attestation-service:latest . -f attestation-service/attestation-service/Dockerfile.grpc
+
+    - name: Build RESTful AS Container Image
+      run: |
+        DOCKER_BUILDKIT=1 docker build -t attestation-service:latest . -f attestation-service/attestation-service/Dockerfile.restful
 
     - name: Build RVPS Container Image
       run: |
-        Docker_BUILDKIT=1 docker build -t rvps:latest . -f attestation-service/Dockerfile.rvps
+        Docker_BUILDKIT=1 docker build -t rvps:latest . -f attestation-service/rvps/Dockerfile
