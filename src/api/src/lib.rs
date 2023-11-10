@@ -26,6 +26,8 @@ use jwt_simple::prelude::Ed25519PublicKey;
 use semver::{BuildMetadata, Prerelease, Version, VersionReq};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[cfg(feature = "rustls")]
 use rustls::ServerConfig;
@@ -224,6 +226,10 @@ impl ApiServer {
         #[cfg(feature = "as")]
         let sessions = web::Data::new(SessionMap::new());
 
+        #[cfg(feature = "as")]
+        let api_key_list: web::Data<Arc<Mutex<Vec<String>>>> =
+            web::Data::new(Arc::new(Mutex::new(Vec::new())));
+
         let http_timeout = self.http_timeout;
 
         #[cfg(feature = "resource")]
@@ -265,7 +271,7 @@ impl ApiServer {
 
             cfg_if::cfg_if! {
                 if #[cfg(feature = "as")] {
-                    server_app = server_app.app_data(web::Data::clone(&sessions))
+                    server_app = server_app.app_data(web::Data::clone(&sessions)).app_data(web::Data::clone(&api_key_list))
                     .app_data(web::Data::clone(&attestation_service)).service(web::resource(kbs_path!("auth")).route(web::post().to(http::auth)))
                     .service(web::resource(kbs_path!("attest")).route(web::post().to(http::attest)))
                     .service(web::resource(kbs_path!("attestation")).route(web::post().to(http::attestation)))
@@ -274,7 +280,9 @@ impl ApiServer {
                             .route(web::get().to(http::get_attestation_policy))
                             .route(web::post().to(http::set_attestation_policy))
                             .route(web::delete().to(http::delete_attestation_policy)),
-                    );
+                    )
+                    .service(web::resource(kbs_path!("new-api-key")).route(web::get().to(http::new_api_key)))
+                    .service(web::resource(kbs_path!("api-key")).route(web::get().to(http::list_api_key)).route(web::delete().to(http::delete_api_key)));
             }}
             cfg_if::cfg_if! {
                 if #[cfg(feature = "resource")] {

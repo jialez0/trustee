@@ -4,6 +4,106 @@
 
 use super::*;
 
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+
+#[cfg(feature = "as")]
+/// GET /new-api-key
+pub(crate) async fn new_api_key(
+    request: HttpRequest,
+    user_pub_key: web::Data<Option<Ed25519PublicKey>>,
+    insecure: web::Data<bool>,
+    api_key_list: web::Data<Arc<Mutex<Vec<String>>>>,
+) -> Result<HttpResponse> {
+    if !insecure.get_ref() {
+        let user_pub_key = user_pub_key
+            .as_ref()
+            .as_ref()
+            .ok_or(Error::UserPublicKeyNotProvided)?;
+
+        validate_auth(&request, user_pub_key).map_err(|e| {
+            Error::FailedAuthentication(format!("Requester is not an authorized user: {e}"))
+        })?;
+    }
+
+    let api_key: String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(10)
+        .map(char::from)
+        .collect();
+
+    api_key_list.clone().lock().await.push(api_key.clone());
+
+    let body = serde_json::to_string(&serde_json::json!({
+        "api-key": api_key,
+    }))
+    .map_err(|e| Error::PolicyEndpoint(format!("Serialize API Key failed {e}")))?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body))
+}
+
+#[cfg(feature = "as")]
+/// GET /api-key
+pub(crate) async fn list_api_key(
+    request: HttpRequest,
+    user_pub_key: web::Data<Option<Ed25519PublicKey>>,
+    insecure: web::Data<bool>,
+    api_key_list: web::Data<Arc<Mutex<Vec<String>>>>,
+) -> Result<HttpResponse> {
+    if !insecure.get_ref() {
+        let user_pub_key = user_pub_key
+            .as_ref()
+            .as_ref()
+            .ok_or(Error::UserPublicKeyNotProvided)?;
+
+        validate_auth(&request, user_pub_key).map_err(|e| {
+            Error::FailedAuthentication(format!("Requester is not an authorized user: {e}"))
+        })?;
+    }
+
+    let body = serde_json::to_string(&serde_json::json!({
+        "api-keys": api_key_list.clone().lock().await.clone(),
+    }))
+    .map_err(|e| Error::PolicyEndpoint(format!("Serialize API Key failed {e}")))?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body))
+}
+
+#[cfg(feature = "as")]
+/// DELETE /api-key
+pub(crate) async fn delete_api_key(
+    request: HttpRequest,
+    input: web::Data<String>,
+    user_pub_key: web::Data<Option<Ed25519PublicKey>>,
+    insecure: web::Data<bool>,
+    api_key_list: web::Data<Arc<Mutex<Vec<String>>>>,
+) -> Result<HttpResponse> {
+    if !insecure.get_ref() {
+        let user_pub_key = user_pub_key
+            .as_ref()
+            .as_ref()
+            .ok_or(Error::UserPublicKeyNotProvided)?;
+
+        validate_auth(&request, user_pub_key).map_err(|e| {
+            Error::FailedAuthentication(format!("Requester is not an authorized user: {e}"))
+        })?;
+    }
+
+    let target_api_key = input.into_inner().to_string();
+
+    api_key_list
+        .clone()
+        .lock()
+        .await
+        .retain(|item| item != &target_api_key);
+
+    Ok(HttpResponse::Ok().finish())
+}
+
 #[cfg(feature = "as")]
 /// POST /attestation-policy
 pub(crate) async fn set_attestation_policy(

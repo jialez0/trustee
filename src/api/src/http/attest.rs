@@ -22,9 +22,31 @@ pub struct TeeEvidence {
 
 /// POST /attestation
 pub(crate) async fn attestation(
+    request: HttpRequest,
     tee_evidence: web::Json<TeeEvidence>,
+    api_key_list: web::Data<Arc<Mutex<Vec<String>>>>,
     attestation_service: web::Data<AttestationService>,
 ) -> Result<HttpResponse> {
+    match request.headers().get("API-KEY") {
+        Some(api_key) => {
+            if let Ok(api_key_value) = api_key.to_str() {
+                if !api_key_list
+                    .clone()
+                    .lock()
+                    .await
+                    .contains(&api_key_value.to_string())
+                {
+                    return Ok(HttpResponse::BadRequest().body("Invalid API Key"));
+                }
+            } else {
+                return Ok(HttpResponse::BadRequest().body("Invalid API Key"));
+            }
+        }
+        None => {
+            return Ok(HttpResponse::BadRequest().body("Missing API Key"));
+        }
+    }
+
     let token = attestation_service
         .0
         .lock()
