@@ -105,7 +105,7 @@ Claims format of the attestation results token is:
 * `tcb_status`: Contains HW-TEE informations and software measurements of AA's execution environment.
 * `evaluation-reports` : The outputs of the policy engine, they are AS policies' evaluation opinion on TEE evidence.
 
-An example token in JSON is [here](./example.token.json).
+An example token in JSON is [here](./attestation-service/example.token.json).
 
 ## Verifier Drivers
 
