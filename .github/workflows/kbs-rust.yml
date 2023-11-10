@@ -70,7 +70,7 @@ jobs:
 
     - name: KBS Build [gRPC CoCo AS, RustTLS]
       working-directory: kbs
-      run: make COCO_AS_INTEGRATE_TYPE=grpc
+      run: make COCO_AS_INTEGRATION_TYPE=grpc
 
     - name: build KBS with amber AS mode
       working-directory: kbs
