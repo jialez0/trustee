@@ -19,13 +19,21 @@ rvps-builtin = [ "reference-value-provider-service" ]
 rvps-grpc = [ "prost", "tonic" ]
 
 # For building gRPC CoCo-AS binary
-bin = [ "clap", "env_logger", "prost", "tonic" ]
+grpc-bin = [ "clap", "env_logger", "prost", "tonic" ]
+
+# For restful CoCo-AS binary
+restful-bin = [ "actix-web", "clap", "env_logger", "thiserror" ]
 
 [[bin]]
 name = "as-grpc"
-required-features = [ "bin" ]
+required-features = [ "grpc-bin" ]
+
+[[bin]]
+name = "as-restful"
+required-features = [ "restful-bin" ]
 
 [dependencies]
+actix-web = { workspace = true, optional = true }
 anyhow.workspace = true
 async-trait.workspace = true
 base64 = "0.21"
@@ -53,6 +61,7 @@ sha2.workspace = true
 shadow-rs.workspace = true
 strum.workspace = true
 time = { version = "0.3.23", features = ["std"] }
+thiserror = { workspace = true, optional = true }
 tokio.workspace = true
 tonic = { workspace = true, optional = true }
 uuid = { version = "1.1.2", features = ["v4"] }
