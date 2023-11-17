@@ -124,6 +124,49 @@ async fn set_policy(
     Ok(HttpResponse::Ok().body(""))
 }
 
+async fn list_policy(cocoas: web::Data<Arc<Mutex<AttestationService>>>) -> Result<HttpResponse> {
+    info!("get policy.");
+
+    let policy_list = cocoas
+        .lock()
+        .await
+        .list_policy()
+        .await
+        .context("get policys")?;
+
+    let body = serde_json::to_string(&serde_json::json!({
+        "policys": policy_list,
+    }))
+    .context("serialize response body")?;
+
+    Ok(HttpResponse::Ok()
+        .content_type("application/json")
+        .body(body))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct RemovePolicyRequest {
+    pub policy_ids: Vec<String>,
+}
+
+async fn remove_policy(
+    input: web::Json<RemovePolicyRequest>,
+    cocoas: web::Data<Arc<Mutex<AttestationService>>>,
+) -> Result<HttpResponse> {
+    info!("set policy.");
+
+    for id in input.into_inner().policy_ids {
+        cocoas
+            .lock()
+            .await
+            .remove_policy(id)
+            .await
+            .context("remove policy")?;
+    }
+
+    Ok(HttpResponse::Ok().body(""))
+}
+
 pub fn start_server(
     attestation_service: AttestationService,
     socket: SocketAddr,
@@ -134,7 +177,12 @@ pub fn start_server(
     let server = HttpServer::new(move || {
         App::new()
             .service(web::resource("/attestation").route(web::post().to(attestation)))
-            .service(web::resource("/set_policy").route(web::post().to(set_policy)))
+            .service(
+                web::resource("/policy")
+                    .route(web::post().to(set_policy))
+                    .route(web::get().to(list_policy))
+                    .route(web::delete().to(remove_policy)),
+            )
             .app_data(web::Data::clone(&attestation_service))
     })
     .bind((socket.ip().to_string(), socket.port()))?

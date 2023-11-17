@@ -47,7 +47,7 @@ impl AttestationService {
 
         let policy_engine = PolicyEngineType::from_str(&config.policy_engine)
             .map_err(|_| anyhow!("Policy Engine {} is not supported", &config.policy_engine))?
-            .to_policy_engine(config.work_dir.as_path())?;
+            .to_policy_engine()?;
 
         let rvps = config
             .rvps_config
@@ -158,5 +158,21 @@ impl AttestationService {
     /// Registry a new reference value
     pub async fn register_reference_value(&mut self, message: &str) -> Result<()> {
         self.rvps.verify_and_extract(message).await
+    }
+
+    /// Remove an attestation policy
+    pub async fn remove_policy(&mut self, policy_id: String) -> Result<()> {
+        self.policy_engine
+            .remove_policy(policy_id)
+            .await
+            .map_err(|e| anyhow!("Cannot Remove Policy: {:?}", e))
+    }
+
+    /// Get all attestation policy
+    pub async fn list_policy(&self) -> Result<Vec<crate::policy_engine::PolicyListEntry>> {
+        self.policy_engine
+            .list_policy()
+            .await
+            .map_err(|e| anyhow!("Cannot List Policy: {:?}", e))
     }
 }

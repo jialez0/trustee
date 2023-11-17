@@ -117,7 +117,7 @@ RESTful CoCo-AS's endpoints are as following:
     "policy_ids": ["default", "policy-1"]           // policies used to check against the evidence.
 }
 ```
-- `/set_policy`: receives policy setting request. The request POST payload is like
+- `/policy`: receives policy setting request. The request POST payload is like
 ```json
 {
     "type": "rego",         // policy type

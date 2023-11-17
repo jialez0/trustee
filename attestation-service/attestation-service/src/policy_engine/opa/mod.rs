@@ -1,16 +1,17 @@
-use crate::policy_engine::{PolicyEngine, PolicyType};
+use crate::policy_engine::{PolicyEngine, PolicyListEntry, PolicyType};
 use anyhow::{anyhow, bail, Result};
 use async_trait::async_trait;
 use base64::Engine;
 use serde_json::Value;
+use sha2::{Digest, Sha384};
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::fs;
 use std::os::raw::c_char;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use super::SetPolicyInput;
+
+type PolicyMap = HashMap<String, String>;
 
 // Link import cgo function
 #[link(name = "cgo")]
@@ -28,31 +29,16 @@ pub struct GoString {
 
 #[derive(Debug)]
 pub struct OPA {
-    policy_dir_path: PathBuf,
+    policy_map: PolicyMap,
 }
 
 impl OPA {
-    pub fn new(work_dir: PathBuf) -> Result<Self> {
-        let mut policy_dir_path = work_dir;
+    pub fn new() -> Result<Self> {
+        let default_policy = std::include_str!("default_policy.rego");
+        let mut policy_map = HashMap::new();
+        policy_map.insert("default".to_string(), default_policy.to_string());
 
-        policy_dir_path.push("opa");
-        if !policy_dir_path.as_path().exists() {
-            fs::create_dir_all(&policy_dir_path)
-                .map_err(|e| anyhow!("Create policy dir failed: {:?}", e))?;
-        }
-
-        let mut default_policy_path = PathBuf::from(
-            &policy_dir_path
-                .to_str()
-                .ok_or_else(|| anyhow!("Policy DirPath to string failed"))?,
-        );
-        default_policy_path.push("default.rego");
-        if !default_policy_path.as_path().exists() {
-            let policy = std::include_str!("default_policy.rego").to_string();
-            fs::write(&default_policy_path, policy)?;
-        }
-
-        Ok(Self { policy_dir_path })
+        Ok(Self { policy_map })
     }
 }
 
@@ -66,17 +52,11 @@ impl PolicyEngine for OPA {
     ) -> Result<HashMap<String, (bool, String)>> {
         let mut res: HashMap<String, (bool, String)> = HashMap::new();
 
-        let policy_dir_path = self
-            .policy_dir_path
-            .to_str()
-            .ok_or_else(|| anyhow!("Miss Policy DirPath"))?;
-
         for policy_id in policy_ids {
-            let policy_file_path = format!("{policy_dir_path}/{policy_id}.rego");
-
-            let policy = tokio::fs::read_to_string(policy_file_path)
-                .await
-                .map_err(|e| anyhow!("Read OPA policy file failed: {:?}", e))?;
+            let policy = self
+                .policy_map
+                .get(&policy_id)
+                .ok_or_else(|| anyhow!("Invalid Policy ID"))?;
 
             let policy_go = GoString {
                 p: policy.as_ptr() as *const c_char,
@@ -136,20 +116,38 @@ impl PolicyEngine for OPA {
             bail!("OPA Policy Engine only support .rego policy");
         }
 
-        let policy_bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        let policy_bytes = base64::engine::general_purpose::STANDARD
             .decode(input.policy)
             .map_err(|e| anyhow!("Base64 decode OPA policy string failed: {:?}", e))?;
-        let mut policy_file_path = PathBuf::from(
-            &self
-                .policy_dir_path
-                .to_str()
-                .ok_or_else(|| anyhow!("Policy DirPath to string failed"))?,
+        self.policy_map.insert(
+            input.policy_id,
+            String::from_utf8(policy_bytes)
+                .map_err(|_| anyhow!("Illegal policy content string"))?,
         );
-        policy_file_path.push(format!("{}.rego", input.policy_id));
 
-        tokio::fs::write(&policy_file_path, policy_bytes)
-            .await
-            .map_err(|e| anyhow!("Write OPA policy to file failed: {:?}", e))
+        Ok(())
+    }
+
+    async fn remove_policy(&mut self, policy_id: String) -> Result<()> {
+        self.policy_map.remove(&policy_id);
+        Ok(())
+    }
+
+    async fn list_policy(&self) -> Result<Vec<PolicyListEntry>> {
+        let mut policy_list = Vec::new();
+
+        for (id, policy) in &self.policy_map {
+            let mut hasher = Sha384::new();
+            hasher.update(&policy);
+            let digest = hasher.finalize().to_vec();
+            policy_list.push(PolicyListEntry {
+                id: id.to_string(),
+                digest: base64::engine::general_purpose::STANDARD.encode(digest),
+                content: policy.clone(),
+            });
+        }
+
+        Ok(policy_list)
     }
 }
 
@@ -176,10 +174,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_evaluate() {
-        let opa = OPA {
-            policy_dir_path: PathBuf::from("./src/policy_engine/opa"),
-        };
-        let default_policy_id = "default_policy".to_string();
+        let default_policy_id = "default".to_string();
+
+        let opa = OPA::new().unwrap();
 
         let reference_data: HashMap<String, Vec<String>> =
             serde_json::from_str(&dummy_reference(5)).unwrap();
@@ -207,7 +204,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_policy() {
-        let mut opa = OPA::new(PathBuf::from("../test_data")).unwrap();
+        let mut opa = OPA::new().unwrap();
         let policy = "package policy
 default allow = true"
             .to_string();
