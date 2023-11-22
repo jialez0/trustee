@@ -36,8 +36,11 @@ type Result<T> = std::result::Result<T, Error>;
 struct AttestationRequest {
     tee: String,
     evidence: String,
+    #[serde(default = "Vec::default")]
     runtime_data: Vec<String>,
+    #[serde(default = "Vec::default")]
     init_data: Vec<String>,
+    #[serde(default = "Vec::default")]
     policy_ids: Vec<String>,
 }
 
