@@ -164,6 +164,9 @@ fn parse_tee_evidence(report: &AttestationReport) -> Result<TeeEvidenceParsedCla
 
         // measurement
         "measurement": format!("{}", base64::engine::general_purpose::STANDARD.encode(body.measure)),
+
+        // report data
+        "report_data": format!("{}", base64::engine::general_purpose::STANDARD.encode(body.report_data)),
     });
 
     Ok(claims_map as TeeEvidenceParsedClaim)
