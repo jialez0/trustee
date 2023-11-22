@@ -47,7 +47,7 @@ jwt = { version = "0.16.0", features = ["openssl"]}
 kbs-types = { git = "https://github.com/virtee/kbs-types", rev = "c90df0e" }
 lazy_static = "1.4.0"
 log.workspace = true
-openssl = { version = "0.10.55", optional = true }
+openssl = "0.10.55"
 path-clean = "1.0.1"
 prost = { workspace = true, optional = true }
 rand = "0.8.5"

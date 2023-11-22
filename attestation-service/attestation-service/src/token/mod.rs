@@ -53,6 +53,15 @@ pub struct AttestationTokenConfig {
     pub duration_min: i64,
 
     pub issuer_name: Option<String>,
+
+    pub signer: Option<TokenSignerConfig>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct TokenSignerConfig {
+    pub key_path: String,
+    pub cert_url: Option<String>,
+    pub cert_path: Option<String>,
 }
 
 impl Default for AttestationTokenConfig {
@@ -60,6 +69,7 @@ impl Default for AttestationTokenConfig {
         Self {
             duration_min: DEFAULT_TOKEN_TIMEOUT,
             issuer_name: None,
+            signer: None,
         }
     }
 }
